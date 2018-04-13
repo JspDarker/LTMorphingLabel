@@ -32,6 +32,13 @@ class LTDemoViewController : UIViewController, LTMorphingLabelDelegate {
         super.viewDidLoad()
         
         label.delegate = self
+        label.font = UIFont.boldSystemFont(ofSize: 85)
+        
+        let textField = UITextField()
+        textField.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        view.addSubview(textField)
+        textField.addTarget(self, action: #selector(textChanged(_:)), for: .editingChanged)
+        textField.becomeFirstResponder()
     }
 
     @IBOutlet fileprivate var label: LTMorphingLabel!
@@ -61,6 +68,25 @@ class LTDemoViewController : UIViewController, LTMorphingLabelDelegate {
     @IBAction func changeFontSize(_ sender: UISlider) {
         label.font = UIFont.init(name: label.font.fontName, size: CGFloat(sender.value))
         label.text = label.text
+    }
+    
+    @objc func textChanged(_ textField: UITextField) {
+        let string = textField.text ?? String()
+        let attributedString = NSMutableAttributedString(string: string)
+        
+        let fontSize: CGFloat = string.count > 4 ? 70 : 85
+        label.font = UIFont.boldSystemFont(ofSize: fontSize)
+        if string.count > 6 {
+            let range = NSMakeRange(6, string.count - 6)
+            attributedString.addAttributes([.font: UIFont.init(name: label.font.fontName, size: label.font.pointSize*0.7)!, .baselineOffset: NSNumber(value: 25 + Float(label.font.pointSize - label.font.pointSize*0.7)/2)], range: range)
+            let range2 = NSMakeRange(4, 6 - 4)
+            attributedString.addAttributes([.font: UIFont.init(name: label.font.fontName, size: label.font.pointSize*0.8)!, .baselineOffset: NSNumber(value: -Float(label.font.pointSize - label.font.pointSize*0.8)/2)], range: range2)
+        } else if string.count > 4 {
+            let range = NSMakeRange(4, string.count - 4)
+            attributedString.addAttributes([.font: UIFont.init(name: label.font.fontName, size: label.font.pointSize*0.8)!, .baselineOffset: NSNumber(value: -Float(label.font.pointSize - label.font.pointSize*0.8)/2)], range: range)
+        }
+        
+        label.customAttributedText = attributedString
     }
 }
 

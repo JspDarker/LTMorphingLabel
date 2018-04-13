@@ -118,6 +118,13 @@ typealias LTMorphingSkipFramesClosure =
             setNeedsLayout()
         }
     }
+
+    
+    open var customAttributedText: NSAttributedString? {
+        didSet {
+            text = customAttributedText?.string
+        }
+    }
     
     override open var text: String? {
         get {
@@ -155,16 +162,10 @@ typealias LTMorphingSkipFramesClosure =
         }
     }
     
-    open var textAttributes: [NSAttributedStringKey: Any]? {
-        didSet {
-            setNeedsLayout()
-        }
-    }
-    
     open override func setNeedsLayout() {
         super.setNeedsLayout()
-        previousRects = rectsOfEachCharacter(previousText, withFont: font)
-        newRects = rectsOfEachCharacter(text ?? "", withFont: font)
+        previousRects = rectsOfEachCharacter(previousText)
+        newRects = rectsOfEachCharacter(text ?? "")
     }
     
     override open var bounds: CGRect {
@@ -261,15 +262,14 @@ extension LTMorphingLabel {
     
     // Could be enhanced by kerning text:
     // http://stackoverflow.com/questions/21443625/core-text-calculate-letter-frame-in-ios
-    func rectsOfEachCharacter(_ textToDraw: String, withFont font: UIFont) -> [CGRect] {
+    func rectsOfEachCharacter(_ textToDraw: String) -> [CGRect] {
         var charRects = [CGRect]()
         var leftOffset: CGFloat = 0.0
-        
-        charHeight = "Leg".size(withAttributes: [.font: font]).height
-        
-        let topOffset = (bounds.size.height - charHeight) / 2.0
 
-        for char in textToDraw {
+        for (index, char) in textToDraw.enumerated() {
+            let font = customFont(at: index)
+            charHeight = "Leg".size(withAttributes: [.font: font]).height
+            let topOffset = (bounds.size.height - charHeight) / 2.0 + customTopOffset(at: index)
             let charSize = String(char).size(withAttributes: [.font: font])
             charRects.append(
                 CGRect(
@@ -309,7 +309,7 @@ extension LTMorphingLabel {
         _ char: Character,
         index: Int,
         progress: Float) -> LTCharacterLimbo {
-            
+            let font = customFont(at: index)
             var currentRect = previousRects[index]
             let oriX = Float(currentRect.origin.x)
             var newX = Float(currentRect.origin.x)
@@ -372,6 +372,7 @@ extension LTMorphingLabel {
         _ char: Character,
         index: Int,
         progress: Float) -> LTCharacterLimbo {
+            let font = customFont(at: index)
             
             let currentRect = newRects[index]
             var currentFontSize = CGFloat(
@@ -458,6 +459,34 @@ extension LTMorphingLabel {
         
         return limbo
     }
+    
+    // MARK: - utils
+    
+    func customFont(at index: Int) -> UIFont {
+        guard let attributes = customAttributes(at: index) else { return font }
+        
+        return (attributes[.font] as? UIFont) ?? font
+    }
+    
+    func customTopOffset(at index: Int) -> CGFloat {
+        let font = customFont(at: index)
+
+        guard let attributes = customAttributes(at: index),
+            let baselineOffset =  (attributes[.baselineOffset] as? NSNumber)?.floatValue,
+            let newFont = UIFont.init(name: font.fontName, size: font.pointSize + CGFloat(baselineOffset/2)) else { return 0 }
+        
+        let originalHeight = "Leg".size(withAttributes: [.font: font]).height
+        let newHeight = "Leg".size(withAttributes: [.font: newFont]).height
+
+        return originalHeight - newHeight
+    }
+    
+    func customAttributes(at index: Int) -> [NSAttributedStringKey: Any]? {
+        guard let attributedText = customAttributedText,
+            index < attributedText.string.count else { return nil }
+        
+        return attributedText.attributes(at: index, effectiveRange: nil)
+    }
 
 }
 
@@ -484,7 +513,7 @@ extension LTMorphingLabel {
             return
         }
         
-        for charLimbo in limboOfCharacters() {
+        for (index, charLimbo) in limboOfCharacters().enumerated() {
             let charRect = charLimbo.rect
             
             let willAvoidDefaultDrawing: Bool = {
@@ -497,16 +526,18 @@ extension LTMorphingLabel {
                 }(charLimbo)
 
             if !willAvoidDefaultDrawing {
-                var attrs: [NSAttributedStringKey: Any] = [
-                    .foregroundColor: textColor.withAlphaComponent(charLimbo.alpha)
-                ]
+                var attrs = [NSAttributedStringKey: Any]()
+                
+                if index < customAttributedText?.string.count {
+                    attrs = customAttributedText?.attributes(at: index, effectiveRange: nil) ?? [:]
+                }
+                
+                if attrs[.foregroundColor] == nil {
+                    attrs[.foregroundColor] = textColor.withAlphaComponent(charLimbo.alpha)
+                }
 
                 if let font = UIFont(name: font.fontName, size: charLimbo.size) {
                     attrs[.font] = font
-                }
-                
-                for (key, value) in textAttributes ?? [:] {
-                    attrs[key] = value
                 }
                 
                 let s = String(charLimbo.char)
